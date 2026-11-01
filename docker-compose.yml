@@ -29,6 +29,19 @@ services:
     depends_on:
       - db
 
+  ai-agent:
+    build:
+      context: ./services/ai-agent
+    ports:
+      - "8001:8000"
+    environment:
+      SQLALCHEMY_DATABASE_URL: postgresql://postgres:postgres@db:5432/finance_db
+      AWS_REGION: us-east-1
+      # Note: Local invocations of Bedrock will require AWS credentials mounted 
+      # or configured via AWS CLI on the host. In EKS, IRSA handles this transparently.
+    depends_on:
+      - db
+
   frontend:
     build:
       context: ./services/frontend
