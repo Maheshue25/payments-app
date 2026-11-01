@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from enum import Enum
 import random
 import uuid
+import os
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,22 +13,9 @@ from sqlalchemy.orm import Session
 
 # Import database setup and models at the top
 from database import engine, Base, SessionLocal, get_db
-from models import TransactionModel
+from models import TransactionModel, TransactionType, TransactionStatus
 
-# Create tables in PostgreSQL
-Base.metadata.create_all(bind=engine)
-
-# --- 1. Pydantic Schemas ---
-class TransactionType(str, Enum):
-    deposit = "deposit"
-    withdrawal = "withdrawal"
-    transfer = "transfer"
-
-class TransactionStatus(str, Enum):
-    pending = "pending"
-    completed = "completed"
-    failed = "failed"
-
+# --- Pydantic Schemas belong in the API ---
 class TransactionCreate(BaseModel):
     amount: float = Field(..., gt=0, description="Amount must be strictly positive")
     type: TransactionType
@@ -42,56 +30,54 @@ class TransactionResponse(TransactionCreate):
     class Config:
         from_attributes = True
 
-ACTIVE_USER_IDS = [f"usr_{str(uuid.uuid4())[:8]}" for _ in range(50)]
+
 
 # --- 2. Background Task ---
-async def generate_synthetic_data():
-    while True:
-        await asyncio.sleep(10)
-        txn_type = random.choice(list(TransactionType))
-        sender = random.choice(ACTIVE_USER_IDS) if txn_type in [TransactionType.transfer, TransactionType.withdrawal] else None
-        recipient = random.choice(ACTIVE_USER_IDS) if txn_type in [TransactionType.transfer, TransactionType.deposit] else None
+# async def generate_synthetic_data():
+#     while True:
+#         await asyncio.sleep(10)
+#         txn_type = random.choice(list(TransactionType))
+#         sender = random.choice(ACTIVE_USER_IDS) if txn_type in [TransactionType.transfer, TransactionType.withdrawal] else None
+#         recipient = random.choice(ACTIVE_USER_IDS) if txn_type in [TransactionType.transfer, TransactionType.deposit] else None
 
-        if txn_type == TransactionType.transfer:
-            while recipient == sender:
-                recipient = random.choice(ACTIVE_USER_IDS)
+#         if txn_type == TransactionType.transfer:
+#             while recipient == sender:
+#                 recipient = random.choice(ACTIVE_USER_IDS)
 
-        db = SessionLocal()
-        try:
-            record = TransactionModel(
-                amount=round(random.uniform(5.0, 2500.0), 2),
-                type=txn_type.value,
-                sender_id=sender,
-                recipient_id=recipient,
-                status=TransactionStatus.completed.value
-            )
-            db.add(record)
-            db.commit()
-            print(f"[DB Stream] Saved: {record.type.upper()} ${record.amount} | {sender or 'EXTERNAL'} -> {recipient or 'EXTERNAL'}")
-        except Exception as e:
-            db.rollback()
-            print(f"[DB Stream Error]: {e}")
-        finally:
-            db.close()
+#         db = SessionLocal()
+#         try:
+#             record = TransactionModel(
+#                 amount=round(random.uniform(5.0, 2500.0), 2),
+#                 type=txn_type.value,
+#                 sender_id=sender,
+#                 recipient_id=recipient,
+#                 status=TransactionStatus.completed.value
+#             )
+#             db.add(record)
+#             db.commit()
+#             print(f"[DB Stream] Saved: {record.type.upper()} ${record.amount} | {sender or 'EXTERNAL'} -> {recipient or 'EXTERNAL'}")
+#         except Exception as e:
+#             db.rollback()
+#             print(f"[DB Stream Error]: {e}")
+#         finally:
+#             db.close()
 
 # --- 3. App Lifespan ---
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    task = asyncio.create_task(generate_synthetic_data())
-    yield
-    task.cancel()
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     task = asyncio.create_task(generate_synthetic_data())
+#     yield
+#     task.cancel()
 
-app = FastAPI(title="Finance API with PostgreSQL", lifespan=lifespan)
+app = FastAPI(title="Finance API with PostgreSQL")
 
-# CORS Middleware with explicit origins and wildcard methods/headers
+# Fallback to local ports if the environment variable is completely missing
+cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8080")
+allowed_origins = [origin.strip() for origin in cors_env.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

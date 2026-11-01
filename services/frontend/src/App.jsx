@@ -41,7 +41,7 @@ export default function App() {
     setStatusMessage("Processing...");
 
     try {
-      const response = await fetch(`${API_BASE}/transactions`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/transactions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

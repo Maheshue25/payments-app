@@ -2,6 +2,17 @@ from datetime import datetime, timezone
 import uuid
 from sqlalchemy import Column, String, Float, DateTime
 from database import Base
+from enum import Enum
+
+class TransactionType(str, Enum):
+    deposit = "deposit"
+    withdrawal = "withdrawal"
+    transfer = "transfer"
+
+class TransactionStatus(str, Enum):
+    pending = "pending"
+    completed = "completed"
+    failed = "failed"
 
 class TransactionModel(Base):
     __tablename__ = "transactions"
