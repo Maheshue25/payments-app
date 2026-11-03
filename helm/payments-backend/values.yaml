@@ -1,0 +1,22 @@
+replicaCount: 3
+
+image:
+  repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/payments-backend
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+env:
+  databaseUrl: "postgresql://postgres:postgres@payments-db.payments.svc.cluster.local:5432/finance_db"
+  corsOrigins: "http://localhost:8080,https://payments.example.com"
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+service:
+  type: ClusterIP
+  port: 8000

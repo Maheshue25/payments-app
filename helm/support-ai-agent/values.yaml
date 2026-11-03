@@ -1,0 +1,36 @@
+replicaCount: 2
+
+image:
+  repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/support-ai-agent
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+serviceAccount:
+  create: true
+  name: support-ai-agent-sa
+  annotations:
+    # Populated from Terraform output: aws_iam_role.ai_agent_irsa.arn
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/payments-production-eks-support-ai-agent-role"
+
+env:
+  awsRegion: "us-east-1"
+  databaseUrl: "postgresql://postgres:postgres@payments-db.payments.svc.cluster.local:5432/finance_db"
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1536Mi
+
+service:
+  type: ClusterIP
+  port: 8000

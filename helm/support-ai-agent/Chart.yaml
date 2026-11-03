@@ -1,0 +1,6 @@
+apiVersion: v2
+name: support-ai-agent
+description: Helm chart for Payments Support AI Agent microservice
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
