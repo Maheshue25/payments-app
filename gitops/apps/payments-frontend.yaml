@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: payments-frontend
+  namespace: argocd
+  labels:
+    tier: client
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/Maheshue25/payments-app.git'
+    targetRevision: main
+    path: helm/payments-frontend
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: payments
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

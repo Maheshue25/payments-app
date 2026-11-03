@@ -1,0 +1,115 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION     = 'us-east-1'
+        AWS_ACCOUNT_ID = '123456789012'
+        ECR_REGISTRY   = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        IMAGE_TAG      = "${BUILD_NUMBER}"
+        SCAN_SEVERITY  = 'HIGH,CRITICAL'
+
+        BACKEND_REPO   = "${ECR_REGISTRY}/payments-backend"
+        FRONTEND_REPO  = "${ECR_REGISTRY}/payments-frontend"
+        AGENT_REPO     = "${ECR_REGISTRY}/support-ai-agent"
+    }
+
+    stages {
+        stage('Checkout Source') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Static Code Analysis (SAST)') {
+            steps {
+                withSonarQubeEnv('SonarQube-Server') {
+                    sh '''
+                        echo "===> Executing SonarQube Scanner across backend, frontend, and AI Agent..."
+                        sonar-scanner \
+                          -Dsonar.projectKey=payments-platform \
+                          -Dsonar.sources=services/backend,services/ai-agent,services/frontend/src \
+                          -Dsonar.exclusions=**/venv/**,**/node_modules/**,**/alembic/**
+                    '''
+                }
+            }
+        }
+
+        stage('SonarQube Quality Gate') {
+            steps {
+                timeout(time: 3, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Trivy Secret & Vulnerability Scan') {
+            steps {
+                sh '''
+                    echo "===> Scanning filesystem for hardcoded secrets and dependency CVEs..."
+                    trivy fs --exit-code 1 --severity ${SCAN_SEVERITY} --scanners vuln,secret services/
+                '''
+            }
+        }
+
+        stage('Docker Build Images') {
+            steps {
+                sh """
+                    echo "===> Building container images..."
+                    docker build -t ${BACKEND_REPO}:${IMAGE_TAG} services/backend
+                    docker build -t ${FRONTEND_REPO}:${IMAGE_TAG} services/frontend
+                    docker build -t ${AGENT_REPO}:${IMAGE_TAG} services/ai-agent
+                """
+            }
+        }
+
+        stage('Trivy Container Layer Scan') {
+            steps {
+                sh """
+                    echo "===> Scanning container images for OS and package CVEs..."
+                    trivy image --exit-code 1 --severity ${SCAN_SEVERITY} --ignore-unfixed ${BACKEND_REPO}:${IMAGE_TAG}
+                    trivy image --exit-code 1 --severity ${SCAN_SEVERITY} --ignore-unfixed ${FRONTEND_REPO}:${IMAGE_TAG}
+                    trivy image --exit-code 1 --severity ${SCAN_SEVERITY} --ignore-unfixed ${AGENT_REPO}:${IMAGE_TAG}
+                """
+            }
+        }
+
+        stage('ECR Push') {
+            steps {
+                sh """
+                    echo "===> Authenticating with ECR and pushing images..."
+                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    docker push ${BACKEND_REPO}:${IMAGE_TAG}
+                    docker push ${FRONTEND_REPO}:${IMAGE_TAG}
+                    docker push ${AGENT_REPO}:${IMAGE_TAG}
+                """
+            }
+        }
+
+        stage('Update GitOps Image Tags') {
+            steps {
+                sh """
+                    echo "===> Updating Helm charts with image tag: ${IMAGE_TAG}..."
+                    git config user.name "jenkins-bot"
+                    git config user.email "jenkins-bot@payments.internal"
+
+                    sed -i "s|tag:.*|tag: \\"${IMAGE_TAG}\\"|g" helm/payments-backend/values.yaml
+                    sed -i "s|tag:.*|tag: \\"${IMAGE_TAG}\\"|g" helm/payments-frontend/values.yaml
+                    sed -i "s|tag:.*|tag: \\"${IMAGE_TAG}\\"|g" helm/support-ai-agent/values.yaml
+
+                    git add helm/payments-backend/values.yaml helm/payments-frontend/values.yaml helm/support-ai-agent/values.yaml
+                    git diff-index --quiet HEAD || git commit -m "chore(ci): update image tags to build ${IMAGE_TAG} [skip ci]"
+                    git push origin main
+                """
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo "Pipeline failed quality gates or security scans."
+        }
+        success {
+            echo "CI pipeline completed successfully. ArgoCD will synchronize new image tags."
+        }
+    }
+}
