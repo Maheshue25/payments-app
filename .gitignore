@@ -7,3 +7,15 @@ venv/
 __pycache__/
 *.pyc
 .env
+# Terraform local state and plugin cache
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
