@@ -6,6 +6,8 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from fastapi import Response
 
 # LangChain Bedrock integration
 from langchain_aws import ChatBedrock
@@ -126,7 +128,10 @@ def handle_support_query(payload: SupportQuery):
     session_id = payload.session_id or str(uuid.uuid4())
     start_time = time.time()
     try:
-        result = agent_executor.invoke({"input": payload.query})
+        with AGENT_INFERENCE_LATENCY.time():
+            result = agent_executor.invoke({"input": payload.query})
+        
+        AGENT_REQUEST_COUNT.labels(status="success").inc()
         duration_ms = round((time.time() - start_time) * 1000, 2)
         return SupportResponse(
             response=result["output"],
@@ -134,4 +139,29 @@ def handle_support_query(payload: SupportQuery):
             latency_ms=duration_ms
         )
     except Exception as e:
+        AGENT_REQUEST_COUNT.labels(status="error").inc()
         raise HTTPException(status_code=500, detail=f"Agent inference failed: {str(e)}")
+
+# ----------------- Prometheus AgentOps Metrics -----------------
+AGENT_REQUEST_COUNT = Counter(
+    "ai_agent_requests_total",
+    "Total queries handled by the support AI agent",
+    ["status"]
+)
+
+AGENT_INFERENCE_LATENCY = Histogram(
+    "ai_agent_inference_duration_seconds",
+    "Time spent in LLM inference and tool execution",
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]
+)
+
+AGENT_TOOL_CALL_COUNT = Counter(
+    "ai_agent_tool_calls_total",
+    "Total database diagnostic tool calls",
+    ["tool_name", "status"]
+)
+
+@app.get("/metrics")
+def get_metrics():
+    """Exposes Prometheus scrape target."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
