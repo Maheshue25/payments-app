@@ -147,3 +147,75 @@ output "ai_agent_role_arn" {
   description = "The ARN to annotate the Kubernetes ServiceAccount with"
   value       = aws_iam_role.ai_agent_irsa.arn
 }
+
+# 1. IAM Policy for AWS Load Balancer Controller
+resource "aws_iam_policy" "aws_lb_controller" {
+  name        = "${var.cluster_name}-AWSLoadBalancerControllerIAMPolicy"
+  description = "Permissions required by the AWS Load Balancer Controller to manage ALBs/NLBs"
+
+  # Official AWS Load Balancer Controller Policy document
+  policy = file("${path.module}/iam_alb_policy.json")
+}
+
+# 2. IRSA Role for Load Balancer Controller ServiceAccount
+resource "aws_iam_role" "aws_lb_controller_irsa" {
+  name = "${var.cluster_name}-aws-lb-controller-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = module.eks.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
+            "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "aws_lb_controller_attach" {
+  role       = aws_iam_role.aws_lb_controller_irsa.name
+  policy_arn = aws_iam_policy.aws_lb_controller.arn
+}
+
+# 3. Helm Release to install the controller automatically into kube-system
+
+resource "helm_release" "aws_load_balancer_controller" {
+  name       = "aws-load-balancer-controller"
+  repository = "https://aws.github.io/eks-charts"
+  chart      = "aws-load-balancer-controller"
+  version    = "1.7.2"
+  namespace  = "kube-system"
+
+  set = [
+    {
+      name  = "clusterName"
+      value = module.eks.cluster_name
+    },
+    {
+      name  = "serviceAccount.create"
+      value = "true"
+    },
+    {
+      name  = "serviceAccount.name"
+      value = "aws-load-balancer-controller"
+    },
+    {
+      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = aws_iam_role.aws_lb_controller_irsa.arn
+    }
+  ]
+
+  depends_on = [
+    module.eks,
+    aws_iam_role_policy_attachment.aws_lb_controller_attach
+  ]
+}
