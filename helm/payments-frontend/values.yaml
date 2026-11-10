@@ -1,7 +1,7 @@
 replicaCount: 2
 
 image:
-  repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/payments-frontend
+  repository: 987078319553.dkr.ecr.us-east-1.amazonaws.com/payments-frontend
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -13,16 +13,7 @@ ingress:
   enabled: true
   className: "alb"
   domain: "erothi.online"
-  # This ARN will be populated from Terraform output once created
-  certificateArn: "arn:aws:acm:us-east-1:987078319553:certificate/PENDING_VALIDATION"
+  certificateArn: "arn:aws:acm:us-east-1:987078319553:certificate/4c5ad673-589a-4638-8afa-27acce01c2a4"
   annotations:
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
-    alb.ingress.kubernetes.io/healthcheck-path: /healthz
-  hosts:
-    - host: payments.example.com
-      paths:
-        - path: /
-          pathType: Prefix
+    scheme: "internet-facing"
+    targetType: "ip"
