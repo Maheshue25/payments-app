@@ -5,16 +5,19 @@ metadata:
   name: payments-unified-ingress
   namespace: {{ .Release.Namespace }}
   annotations:
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.annotations.scheme | default "internet-facing" }}
+    alb.ingress.kubernetes.io/target-type: {{ .Values.ingress.annotations.targetType | default "ip" }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn | quote }}
     alb.ingress.kubernetes.io/healthcheck-path: /healthz
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:
-    - http:
+    - host: {{ .Values.ingress.domain }}
+      http:
         paths:
-          # Route UI traffic to React frontend
+          # React Frontend UI
           - path: /
             pathType: Prefix
             backend:
@@ -22,7 +25,7 @@ spec:
                 name: {{ .Chart.Name }}
                 port:
                   number: 80
-          # Route API traffic to FastAPI backend
+          # Core Payments FastAPI Backend
           - path: /api
             pathType: Prefix
             backend:
@@ -30,4 +33,22 @@ spec:
                 name: payments-backend
                 port:
                   number: 8000
+          # Support AI Agent Diagnostics
+          - path: /agent
+            pathType: Prefix
+            backend:
+              service:
+                name: support-ai-agent
+                port:
+                  number: 8000
+    - host: "www.{{ .Values.ingress.domain }}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Chart.Name }}
+                port:
+                  number: 80
 {{- end }}

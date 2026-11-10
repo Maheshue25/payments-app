@@ -219,3 +219,100 @@ resource "helm_release" "aws_load_balancer_controller" {
     aws_iam_role_policy_attachment.aws_lb_controller_attach
   ]
 }
+
+# Append to terraform/modules/eks/main.tf
+
+# 1. IAM Policy for External-DNS to modify Route 53
+resource "aws_iam_policy" "external_dns" {
+  name        = "${var.cluster_name}-ExternalDNSPolicy"
+  description = "Allows External-DNS to create and update records in Route 53"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["route53:ChangeResourceRecordSets"]
+        Resource = ["arn:aws:route53:::hostedzone/*"]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:ListHostedZones",
+          "route53:ListResourceRecordSets"
+        ]
+        Resource = ["*"]
+      }
+    ]
+  })
+}
+
+# 2. IRSA Role for External-DNS ServiceAccount
+resource "aws_iam_role" "external_dns_irsa" {
+  name = "${var.cluster_name}-external-dns-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = module.eks.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:kube-system:external-dns"
+            "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "external_dns_attach" {
+  role       = aws_iam_role.external_dns_irsa.name
+  policy_arn = aws_iam_policy.external_dns.arn
+}
+
+# 3. Helm Release for External-DNS
+resource "helm_release" "external_dns" {
+  name       = "external-dns"
+  repository = "https://kubernetes-sigs.github.io/external-dns/"
+  chart      = "external-dns"
+  version    = "1.14.3"
+  namespace  = "kube-system"
+
+  set = [
+    {
+      name  = "provider"
+      value = "aws"
+    },
+    {
+      name  = "aws.zoneType"
+      value = "public"
+    },
+    {
+      name  = "txtOwnerId"
+      value = var.cluster_name
+    },
+    {
+      name  = "serviceAccount.create"
+      value = "true"
+    },
+    {
+      name  = "serviceAccount.name"
+      value = "external-dns"
+    },
+    {
+      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = aws_iam_role.external_dns_irsa.arn
+    }
+  ]
+
+  depends_on = [
+    module.eks,
+    aws_iam_role_policy_attachment.external_dns_attach
+  ]
+}

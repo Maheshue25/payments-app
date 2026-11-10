@@ -40,6 +40,21 @@ module "eks" {
   agent_service_account = "support-ai-agent-sa"
 }
 
+module "dns" {
+  source      = "../../modules/dns"
+  domain_name = "erothi.online"
+}
+
+output "route53_nameservers" {
+  description = "Assign these nameservers to your domain registrar (e.g., Hostinger, GoDaddy, Namecheap)"
+  value       = module.dns.name_servers
+}
+
+output "acm_certificate_arn" {
+  description = "ACM Certificate ARN to be injected into Helm Ingress"
+  value       = module.dns.certificate_arn
+}
+
 # Configure Helm provider at the root level using EKS module outputs
 provider "helm" {
   kubernetes = {

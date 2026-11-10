@@ -12,9 +12,15 @@ service:
 ingress:
   enabled: true
   className: "alb"
+  domain: "erothi.online"
+  # This ARN will be populated from Terraform output once created
+  certificateArn: "arn:aws:acm:us-east-1:987078319553:certificate/PENDING_VALIDATION"
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
   hosts:
     - host: payments.example.com
       paths:
