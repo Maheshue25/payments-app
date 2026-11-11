@@ -16,19 +16,21 @@ env:
   awsRegion: "us-east-1"
   databaseUrl: "postgresql://postgres:postgres@payments-db.payments.svc.cluster.local:5432/finance_db"
 
-livenessProbe:
-  httpGet:
-    path: /
-    port: 8000
-  initialDelaySeconds: 15
-  periodSeconds: 10
-
 readinessProbe:
   httpGet:
-    path: /
+    path: /healthz
     port: 8000
   initialDelaySeconds: 10
   periodSeconds: 5
+  timeoutSeconds: 2
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8000
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 2
 
 securityContext:
   runAsNonRoot: true
