@@ -10,11 +10,25 @@ serviceAccount:
   name: support-ai-agent-sa
   annotations:
     # Populated from Terraform output: aws_iam_role.ai_agent_irsa.arn
-    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/payments-production-eks-support-ai-agent-role"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::987078319553:role/payments-production-eks-support-ai-agent-role"
 
 env:
   awsRegion: "us-east-1"
   databaseUrl: "postgresql://postgres:postgres@payments-db.payments.svc.cluster.local:5432/finance_db"
+
+livenessProbe:
+  httpGet:
+    path: /
+    port: 8000
+  initialDelaySeconds: 15
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 5
 
 securityContext:
   runAsNonRoot: true

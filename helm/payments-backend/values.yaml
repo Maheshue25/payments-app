@@ -9,6 +9,14 @@ env:
   databaseUrl: "postgresql://postgres:postgres@payments-db.payments.svc.cluster.local:5432/finance_db"
   corsOrigins: "http://localhost:8080,https://payments.example.com"
 
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 2
+
 resources:
   requests:
     cpu: 200m
