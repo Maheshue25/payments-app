@@ -1,8 +1,8 @@
 replicaCount: 3
 
 image:
-  repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/payments-backend
-  pullPolicy: IfNotPresent
+  repository: 987078319553.dkr.ecr.us-east-1.amazonaws.com/payments-backend
+  pullPolicy: Always
   tag: "latest"
 
 env:
