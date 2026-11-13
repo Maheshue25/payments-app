@@ -15,5 +15,9 @@ ingress:
   domain: "erothi.online"
   certificateArn: "arn:aws:acm:us-east-1:987078319553:certificate/4c5ad673-589a-4638-8afa-27acce01c2a4"
   annotations:
-    scheme: "internet-facing"
-    targetType: "ip"
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/success-codes: "200"
