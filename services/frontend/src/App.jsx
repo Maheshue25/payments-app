@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const API_BASE = "/api";
+const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace(/\/+$/, "");
 const CURRENT_USER_ID = "ACC-904812"; // Matches your Receive Money account ID
 
 export default function App() {
@@ -41,7 +41,7 @@ export default function App() {
     setStatusMessage("Processing...");
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/transactions`, {
+      const response = await fetch(`${API_BASE}/transactions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

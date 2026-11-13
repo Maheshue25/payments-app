@@ -3,7 +3,7 @@ replicaCount: 2
 image:
   repository: 987078319553.dkr.ecr.us-east-1.amazonaws.com/payments-frontend
   pullPolicy: IfNotPresent
-  tag: "latest"
+  tag: "bc6ede7"
 
 service:
   type: ClusterIP

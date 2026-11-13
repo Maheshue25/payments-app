@@ -7,6 +7,7 @@ import uuid
 import os
 
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -84,12 +85,25 @@ app.add_middleware(
 )
 
 # --- 4. Routes ---
-@app.get("/")
-def root(db: Session = Depends(get_db)):
+#1. Root & Kubernetes Kubelet Probe Routes (No /api prefix)
+api_router = APIRouter(prefix="/api")
+
+@app.get("/healthz")
+def root_healthz():
+    return {"status": "ok"}
+
+@api_router.get("/")
+def api_root(db: Session = Depends(get_db)):
     count = db.query(TransactionModel).count()
     return {"message": "Finance API is connected to PostgreSQL", "total_transactions_in_db": count}
 
-@app.post("/transactions", response_model=TransactionResponse)
+# 2. External ALB Ingress Routes (/api prefix)
+
+@api_router.get("/healthz")
+def api_healthz():
+    return {"status": "ok"}
+
+@api_router.post("/transactions", response_model=TransactionResponse)
 def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)):
     if payload.type == TransactionType.transfer and (not payload.sender_id or not payload.recipient_id):
         raise HTTPException(status_code=400, detail="Transfers require both sender_id and recipient_id")
@@ -106,6 +120,8 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
     db.refresh(db_txn)
     return db_txn
 
-@app.get("/transactions", response_model=list[TransactionResponse])
+@api_router.get("/transactions", response_model=list[TransactionResponse])
 def list_transactions(limit: int = 50, db: Session = Depends(get_db)):
     return db.query(TransactionModel).order_by(TransactionModel.timestamp.desc()).limit(limit).all()
+
+app.include_router(api_router)

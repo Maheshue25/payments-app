@@ -165,3 +165,9 @@ AGENT_TOOL_CALL_COUNT = Counter(
 def get_metrics():
     """Exposes Prometheus scrape target."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+@app.get("/healthz")
+@app.get("/ready")
+@app.get("/")
+def health_check():
+    return {"status": "healthy", "service": "support-ai-agent"}
