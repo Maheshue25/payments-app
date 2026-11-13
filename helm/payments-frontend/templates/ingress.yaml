@@ -17,15 +17,6 @@ spec:
     - host: {{ .Values.ingress.domain }}
       http:
         paths:
-          # React Frontend UI
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ .Chart.Name }}
-                port:
-                  number: 80
-          # Core Payments FastAPI Backend
           - path: /api
             pathType: Prefix
             backend:
@@ -33,7 +24,6 @@ spec:
                 name: payments-backend
                 port:
                   number: 8000
-          # Support AI Agent Diagnostics
           - path: /agent
             pathType: Prefix
             backend:
@@ -41,14 +31,35 @@ spec:
                 name: support-ai-agent
                 port:
                   number: 8000
-    - host: "www.{{ .Values.ingress.domain }}"
-      http:
-        paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ .Chart.Name }}
+                name: payments-frontend
+                port:
+                  number: 80
+    - host: {{ .Values.ingress.domain }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: payments-backend
+                port:
+                  number: 8000
+          - path: /agent
+            pathType: Prefix
+            backend:
+              service:
+                name: support-ai-agent
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: payments-frontend
                 port:
                   number: 80
 {{- end }}
