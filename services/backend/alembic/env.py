@@ -15,6 +15,15 @@ import models # This forces your models to load into memory so Alembic sees them
 # access to the values within the .ini file in use.
 config = context.config
 
+sys.path.append(os.getcwd())
+
+# Override alembic.ini sqlalchemy.url with the environment variable injected by Kubernetes/Docker
+db_url = os.getenv("SQLALCHEMY_DATABASE_URL")
+if db_url:
+    if db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    config.set_main_option("sqlalchemy.url", db_url)
+
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
