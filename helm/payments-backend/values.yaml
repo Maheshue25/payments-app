@@ -2,11 +2,11 @@ replicaCount: 3
 
 image:
   repository: 987078319553.dkr.ecr.us-east-1.amazonaws.com/payments-backend
-  pullPolicy: Always
-  tag: "latest"
+  pullPolicy: IfNotPresent
+  tag: "bc6ede7"
 
 env:
-  atabaseUrl: "postgresql://postgres:postgres@payments-db.payments.svc.cluster.local:5432/finance_db"
+  databaseUrl: "postgresql://postgres:postgres@payments-db.payments.svc.cluster.local:5432/finance_db"
   corsOrigins: "https://erothi.online,https://www.erothi.online,http://localhost:8080,http://localhost:5173"
 readinessProbe:
   httpGet:
@@ -37,3 +37,5 @@ resources:
 service:
   type: ClusterIP
   port: 8000
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: /api/healthz

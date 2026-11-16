@@ -1,8 +1,13 @@
+# Language: YAML (helm/payments-backend/templates/service.yaml & helm/support-ai-agent/templates/service.yaml)
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Chart.Name }}
   namespace: {{ .Release.Namespace }}
+{{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+{{- end }}
 spec:
   type: {{ .Values.service.type }}
   ports:

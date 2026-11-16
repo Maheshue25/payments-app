@@ -2,8 +2,8 @@ replicaCount: 2
 
 image:
   repository: 987078319553.dkr.ecr.us-east-1.amazonaws.com/payments-backend
-  pullPolicy: Always
-  tag: "latest"
+  pullPolicy: IfNotPresent
+  tag: "bc6ede7"
 
 serviceAccount:
   create: true
@@ -50,3 +50,5 @@ resources:
 service:
   type: ClusterIP
   port: 8000
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: /agent/healthz
