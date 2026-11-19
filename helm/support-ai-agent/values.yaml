@@ -1,7 +1,7 @@
 replicaCount: 2
 
 image:
-  repository: 987078319553.dkr.ecr.us-east-1.amazonaws.com/payments-backend
+  repository: 987078319553.dkr.ecr.us-east-1.amazonaws.com/support-ai-agent
   pullPolicy: IfNotPresent
   tag: "bc6ede7"
 
@@ -14,11 +14,10 @@ serviceAccount:
 
 env:
   awsRegion: "us-east-1"
-  databaseUrl: "postgresql://postgres:postgres@payments-db.payments.svc.cluster.local:5432/finance_db"
 
 readinessProbe:
   httpGet:
-    path: /healthz
+    path: /agent/ready
     port: 8000
   initialDelaySeconds: 10
   periodSeconds: 5
@@ -26,7 +25,7 @@ readinessProbe:
 
 livenessProbe:
   httpGet:
-    path: /healthz
+    path: /agent/healthz
     port: 8000
   initialDelaySeconds: 15
   periodSeconds: 10
@@ -52,3 +51,8 @@ service:
   port: 8000
   annotations:
     alb.ingress.kubernetes.io/healthcheck-path: /agent/healthz
+
+metrics:
+  enabled: true
+  path: /agent/metrics
+  interval: 15s

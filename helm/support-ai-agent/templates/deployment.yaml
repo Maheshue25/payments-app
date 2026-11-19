@@ -1,3 +1,4 @@
+# Language: YAML (helm/support-ai-agent/templates/deployment.yaml)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,21 +32,18 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - containerPort: 8000
+            - name: http
+              containerPort: 8000
           env:
             - name: AWS_REGION
               value: {{ .Values.env.awsRegion | quote }}
-            - name: SQLALCHEMY_DATABASE_URL
-              value: {{ .Values.env.databaseUrl | quote }}
+            - name: AWS_DEFAULT_REGION
+              value: {{ .Values.env.awsRegion | quote }}
+          envFrom:
+            - secretRef:
+                name: payments-db-secret
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          ports:
-            - containerPort: 8000
-          env:
-            - name: AWS_REGION
-              value: "us-east-1"
-            - name: AWS_DEFAULT_REGION
-              value: "us-east-1"
           {{- if .Values.readinessProbe }}
           readinessProbe:
             {{- toYaml .Values.readinessProbe | nindent 12 }}

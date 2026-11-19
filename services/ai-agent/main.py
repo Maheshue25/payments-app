@@ -1,13 +1,13 @@
+# Language: Python (services/ai-agent/main.py)
 import os
 import uuid
 import time
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-from fastapi import Response
 
 # LangChain Bedrock integration
 from langchain_aws import ChatBedrock
@@ -18,7 +18,30 @@ from langchain_core.tools import tool
 app = FastAPI(
     title="Finance Support AI Agent API",
     version="1.0.0",
-    docs_url="/docs"
+    docs_url="/agent/docs",
+    openapi_url="/agent/openapi.json"
+)
+
+# Mount all routes under /agent to match AWS ALB Ingress prefix routing
+agent_router = APIRouter(prefix="/agent")
+
+# ----------------- Prometheus AgentOps Metrics -----------------
+AGENT_REQUEST_COUNT = Counter(
+    "ai_agent_requests_total",
+    "Total queries handled by the support AI agent",
+    ["status"]
+)
+
+AGENT_INFERENCE_LATENCY = Histogram(
+    "ai_agent_inference_duration_seconds",
+    "Time spent in LLM inference and tool execution",
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]
+)
+
+AGENT_TOOL_CALL_COUNT = Counter(
+    "ai_agent_tool_calls_total",
+    "Total database diagnostic tool calls",
+    ["tool_name", "status"]
 )
 
 # ----------------- Database Setup -----------------
@@ -40,6 +63,7 @@ def get_transaction_details(transaction_id: str) -> str:
             "FROM transactions WHERE id = :tx_id"
         )
         result = db.execute(query, {"tx_id": transaction_id.strip()}).mappings().first()
+        AGENT_TOOL_CALL_COUNT.labels(tool_name="get_transaction_details", status="success").inc()
         if not result:
             return f"Transaction ID '{transaction_id}' was not found in the database."
         return (
@@ -48,6 +72,7 @@ def get_transaction_details(transaction_id: str) -> str:
             f"Sender={result['sender_id']}, Recipient={result['recipient_id']}, Time={result['timestamp']}"
         )
     except Exception as err:
+        AGENT_TOOL_CALL_COUNT.labels(tool_name="get_transaction_details", status="error").inc()
         return f"Database query failure: {str(err)}"
     finally:
         db.close()
@@ -63,6 +88,7 @@ def analyze_account_failures(user_id: str) -> str:
             "ORDER BY timestamp DESC LIMIT 5"
         )
         rows = db.execute(query, {"uid": user_id.strip()}).mappings().all()
+        AGENT_TOOL_CALL_COUNT.labels(tool_name="analyze_account_failures", status="success").inc()
         if not rows:
             return f"Account '{user_id}' has no recent failed or pending transactions."
         summary = [
@@ -71,6 +97,7 @@ def analyze_account_failures(user_id: str) -> str:
         ]
         return f"Recent uncompleted transactions for account {user_id}:\n" + "\n".join(summary)
     except Exception as err:
+        AGENT_TOOL_CALL_COUNT.labels(tool_name="analyze_account_failures", status="error").inc()
         return f"Diagnostic tool failure: {str(err)}"
     finally:
         db.close()
@@ -109,13 +136,12 @@ class SupportResponse(BaseModel):
     session_id: str
     latency_ms: float
 
-@app.get("/healthz")
+@agent_router.get("/healthz")
 def healthz():
     return {"status": "healthy", "service": "support-ai-agent"}
 
-@app.get("/ready")
+@agent_router.get("/ready")
 def ready():
-    # Verify database readiness
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -123,7 +149,7 @@ def ready():
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database not ready: {str(e)}")
 
-@app.post("/agent/chat", response_model=SupportResponse)
+@agent_router.post("/chat", response_model=SupportResponse)
 def handle_support_query(payload: SupportQuery):
     session_id = payload.session_id or str(uuid.uuid4())
     start_time = time.time()
@@ -142,32 +168,10 @@ def handle_support_query(payload: SupportQuery):
         AGENT_REQUEST_COUNT.labels(status="error").inc()
         raise HTTPException(status_code=500, detail=f"Agent inference failed: {str(e)}")
 
-# ----------------- Prometheus AgentOps Metrics -----------------
-AGENT_REQUEST_COUNT = Counter(
-    "ai_agent_requests_total",
-    "Total queries handled by the support AI agent",
-    ["status"]
-)
-
-AGENT_INFERENCE_LATENCY = Histogram(
-    "ai_agent_inference_duration_seconds",
-    "Time spent in LLM inference and tool execution",
-    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]
-)
-
-AGENT_TOOL_CALL_COUNT = Counter(
-    "ai_agent_tool_calls_total",
-    "Total database diagnostic tool calls",
-    ["tool_name", "status"]
-)
-
-@app.get("/metrics")
+@agent_router.get("/metrics")
 def get_metrics():
-    """Exposes Prometheus scrape target."""
+    """Exposes Prometheus AgentOps scrape target at /agent/metrics."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-@app.get("/healthz")
-@app.get("/ready")
-@app.get("/")
-def health_check():
-    return {"status": "healthy", "service": "support-ai-agent"}
+# Register router with FastAPI
+app.include_router(agent_router)

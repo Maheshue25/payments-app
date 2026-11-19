@@ -1,0 +1,7 @@
+replicaCount: 1
+image:
+  repository: 987078319553.dkr.ecr.us-east-1.amazonaws.com/payments-worker
+  tag: "latest"
+  pullPolicy: IfNotPresent
+env:
+  databaseSecretName: payments-db-secret
